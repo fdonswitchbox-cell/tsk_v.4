@@ -1,0 +1,63 @@
+Заметка (raw text)
+    │
+    ▼
+1. chunker.py        → разбивка на наблюдения (observations)
+2. extractor.py      → LLM (qwen2.5:1.5b) → entities, problems, actions, observations
+    │
+    ▼
+3. db.py             → запись в свои таблицы:
+    ├─ entities       — извлечённые сущности
+    ├─ problems       — выявленные проблемы
+    ├─ extractions    — сырой JSON от LLM (аудит)
+    └─ entity_stats   — агрегированные метрики
+    │
+    ▼
+4. graph_builder.py  → свой граф co-occurrence:
+    ├─ entity_links   — entity1 ↔ entity2 (сила = кол-во совместных заметок)
+    └─ генерация действий (actions)
+    │
+    ▼
+5. priority.py       → скоринг действий через граф:
+    ├─ взвешивание (importance × out-degree × in-degree × recency)
+    └─ top_actions — реальные проблемы пользователя
+    │
+    ▼
+6. insight_engine.py → 4 анализатора:
+    ├─ trend_rising/falling    — растущие/падающие проблемы
+    ├─ correlation             — связанные пары сущностей
+    ├─ root_cause              — корневые причины (out-degree)
+    └─ recurrence              — повторяющиеся проблемы
+    │
+    ▼
+7. insight_ranker.py → топ-N по confidence, без дублей
+    │
+    ▼
+8. answer_engine.py  → POST /v3/ask:
+    ├─ intent classifier (LLM)
+    ├─ evidence builder (insights + top_actions)
+    └─ ответ генератор (LLM)
+Таблицы PostgreSQL — 15 шт
+Таблица	Назначение
+notes	сырые заметки, hash-dedup
+observations	чанки (по 1-3 предложения)
+entities	сущности (из экстрактора)
+entity_links	свой граф (co-occurrence)
+problems	проблемы из заметок
+extractions	сырой JSON от LLM
+actions	сгенерированные действия
+entity_stats	метрики (частота, давность)
+relations	legacy от LightRAG
+relation_stats	legacy
+categories	таксономия (иерархическая)
+category_keywords	ключи → категории
+note_categories	M:N
+entity_categories	M:N
+action_entities	M:N
+LightRAG сейчас
+Используется только для /v3/query (семантический поиск)
+Его граф не влияет на priority, insights, actions, ask
+Legacy сущности (LLM, PostgreSQL, pgvector…) отфильтрованы из инсайтов
+Чего пока нет
+Своего векторного поиска (pgvector не задействован)
+update_relation_stats() — таблица есть, функция no-op
+/v3/search — эндпоинт поиска (заменит LightRAG query)
